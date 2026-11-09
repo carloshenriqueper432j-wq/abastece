@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abastece Fácil - Controle de Abastecimento</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="manifest" href="data:application/json,{%22name%22:%22Abastece%20F%C3%A1cil%22,%22short_name%22:%22AbasteceF%C3%A1cil%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23f8fafc%22,%22theme_color%22:%22%231e3a8a%22}">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col pb-12 antialiased selection:bg-blue-500 selection:text-white">
+
+  <!-- Toast Notification Bar -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 ease-out max-w-md bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 pointer-events-none">
+    <span id="toastIcon" class="text-xl">ℹ️</span>
+    <span id="toastMessage" class="text-sm font-medium">Notificação do sistema</span>
+  </div>
+
+  <!-- Header Section -->
+  <header class="bg-blue-950 text-white sticky top-0 z-40 shadow-md border-b border-blue-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-2">
+      <div class="flex flex-wrap justify-between items-center gap-4 mb-3">
+        <!-- Brand Title & Status -->
+        <div class="flex items-center gap-3">
+          <div class="bg-blue-600/30 p-2 rounded-xl border border-blue-400/30 flex items-center justify-center text-2xl">
+            👟
+          </div>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight flex items-center gap-2">
+              Abastece Fácil
+            </h1>
+            <p class="text-xs text-blue-300/80 font-medium hidden sm:block">Modo Local & Bloco de Notas</p>
+          </div>
+          <span id="syncStatus" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 ml-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Modo Local</span>
+          </span>
+        </div>
+
+        <!-- Role Selector Badge -->
+        <button id="userBadge" onclick="openLoginModal()" class="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition border border-white/15 shadow-inner group">
+          <span id="userRoleIcon">👤</span>
+          <span id="userRoleText">Abastecedor (Consulta)</span>
+          <span class="text-blue-300 group-hover:translate-x-0.5 transition-transform text-xs">🔒 Alterar</span>
+        </button>
+      </div>
+
+      <!-- Sector Navigation Tabs -->
+      <nav class="no-scrollbar overflow-x-auto py-1 -mb-px">
+        <div id="navTabs" class="flex gap-2 min-w-max pb-1">
+          <!-- Rendered dynamically -->
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 mt-6 flex-grow w-full">
+    
+    <!-- Centralized Search Hero (Only visible on Modelos tab) -->
+    <div id="searchHero" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm mb-6 transition-all">
+      <div class="max-w-2xl mx-auto text-center">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-2">Consulta Rápida de Componentes</h2>
+        <div class="relative">
+          <input type="text" id="searchInput" class="w-full pl-11 pr-10 py-3.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition text-base shadow-inner" placeholder="Busque por nome do calçado, numeração (ex: 35), lote..." oninput="onSearchInput(this.value)">
+          <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">
+            🔍
+          </div>
+          <button id="searchClearBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs font-bold items-center justify-center transition">
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Target Container -->
+    <div id="tabContent"></div>
+  </main>
+
+  <!-- MODAL: LOGIN / PERMISSOES -->
+  <div id="loginModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <span>🔐</span> Acesso Restrito
+        </h3>
+        <button onclick="closeLoginModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1">✕</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-4 leading-relaxed">Digite a senha para alterar credenciais ou níveis de acesso.</p>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Senha de Acesso</label>
+          <input type="password" id="loginPasswordInput" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white" placeholder="Digite sua senha...">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6">
+        <button onclick="closeLoginModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">Cancelar</button>
+        <button onclick="submitPassword()" class="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold transition shadow-md">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MODELO (CADASTRAR / EDITAR) -->
+  <div id="modelModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100">
+      <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+        <div>
+          <h3 id="modelModalTitle" class="text-xl font-bold text-blue-950">Cadastrar Novo Modelo</h3>
+          <span id="autoSaveIndicator" class="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5 opacity-0 transition-opacity">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Auto-salvo no dispositivo
+          </span>
+        </div>
+        <button onclick="closeModelModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+      </div>
+      
+      <form id="modelForm" onsubmit="saveModel(event)" oninput="triggerAutoSave()" class="p-6 overflow-y-auto space-y-4 flex-grow">
+        <input type="hidden" id="modelId">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Nome do Calçado / Modelo *</label>
+            <input type="text" id="modelName" required placeholder="ex: Olympus Speed 5.0" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Numerações Atendidas *</label>
+            <input type="text" id="modelSizes" required placeholder="ex: 35 ao 44" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Lote / Ordem de Produção</label>
+            <input type="text" id="modelBatch" placeholder="ex: Lote 402B" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white">
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-sm font-bold text-blue-900 uppercase tracking-wider">Componentes e Peças Solicitadas</h4>
+            <span class="text-xs text-slate-400">Vinculados aos setores</span>
+          </div>
+          <div id="componentsContainer" class="space-y-2"></div>
+          <button type="button" onclick="addComponentInputRow()" class="mt-2 w-full py-2 bg-slate-100 hover:bg-slate-200 text-blue-900 border border-dashed border-slate-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1">
+            <span>+</span> Adicionar Novo Componente
+          </button>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Matrizes Necessárias (Corte / Frequência)</label>
+          <input type="text" id="modelMatrices" placeholder="ex: Matriz Recorte #12, Matriz Frequência Vista #04" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Observações Específicas / Instruções</label>
+          <textarea id="modelNotes" rows="2" placeholder="Orientação técnica especial para abastecimento..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white"></textarea>
+        </div>
+
+        <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+          <span id="saveStatusText" class="text-xs text-slate-400 font-medium">✨ As alterações são salvas automaticamente</span>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeModelModal()" class="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold transition shadow-md">Concluir</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SETOR (ADICIONAR NOVO) -->
+  <div id="sectorModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-slate-900">Novo Setor de Produção</h3>
+        <button onclick="closeSectorModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+      </div>
+
+      <form onsubmit="saveNewSector(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Nome do Setor *</label>
+          <input type="text" id="sectorNameInput" required placeholder="ex: Bordado, Almoxarifado" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Ícone Emoji</label>
+          <input type="text" id="sectorIconInput" placeholder="ex: 🧵, 📦, ✂️" value="📌" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Descrição e Instruções</label>
+          <textarea id="sectorDescInput" rows="2" placeholder="Resumo das atividades desenvolvidas..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:bg-white"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-4">
+          <button type="button" onclick="closeSectorModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">Cancelar</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold transition shadow-md">Criar Setor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Application Logic Script -->
+  <script>
+    let currentUserRole = 'abastecedor';
+    let activeTab = 'modelos';
+    let searchQuery = '';
+    let autoSaveTimer = null;
+
+    window.passwords = JSON.parse(localStorage.getItem('af_passwords')) || {
+      admin: 'admin123',
+      autorizado: 'autorizado123'
+    };
+
+    window.sectors = JSON.parse(localStorage.getItem('af_sectors')) || [
+      { id: 'modelos', name: 'Modelos', icon: '👟', desc: 'Catálogo geral de modelos de calçados e especificações completas.' },
+      { id: 'frequencia', name: 'Frequência', icon: '⚙️', desc: 'Componentes para separação e preparação do setor de Frequência.' },
+      { id: 'arprep', name: 'ARPREP', icon: '📦', desc: 'Central de armazenamento e distribuição de materiais preparados.' },
+      { id: 'serigrafia', name: 'Serigrafia', icon: '🎨', desc: 'Estampagem, gravação e tintura de gáspeas e tiras.' },
+      { id: 'preparacao', name: 'Preparação', icon: '✂️', desc: 'Corte preliminar, montagem de gáspeas e acoplamentos.' },
+      { id: 'matrizes', name: 'Matrizes', icon: '🛠️', desc: 'Matrizes de corte, conformação e frequência por modelo.' },
+      { id: 'configuracoes', name: 'Configurações', icon: '⚙️', desc: 'Gerenciamento de backups, credenciais e setores.' }
+    ];
+
+    window.models = JSON.parse(localStorage.getItem('af_models')) || [
+      {
+        id: '1',
+        name: 'Olympus Speed 5.0',
+        sizes: '37 ao 43',
+        batch: 'Lote 102A',
+        matrices: 'Matriz Frequência V-02, Matriz Recorte Vista #4',
+        notes: 'Verificar alinhamento da placa da logo no material refletivo.',
+        components: [
+          { name: 'Placa da Vista Refletiva', qty: '1 par/par', sector: 'frequencia' },
+          { name: 'Placa da Logo Lateral', qty: '2 un/par', sector: 'frequencia' },
+          { name: 'Gáspea Marginada c/ Silk', qty: '1 par/par', sector: 'arprep' },
+          { name: 'Etiqueta de Lingueta', qty: '1 par/par', sector: 'serigrafia' }
+        ]
+      },
+      {
+        id: '2',
+        name: 'Beira Rio Casual 3540',
+        sizes: '34 ao 39',
+        batch: 'Lote 88',
+        matrices: 'Matriz Recorte Salto #1',
+        notes: 'Cuidado extra com silk dourado na serigrafia.',
+        components: [
+          { name: 'Aplique Serigrafado Dourado', qty: '2 un/par', sector: 'serigrafia' },
+          { name: 'Gáspea Preparada', qty: '1 par/par', sector: 'preparacao' }
+        ]
+      }
+    ];
+
+    const numberMap = {
+      'um': '1', 'dois': '2', 'tres': '3', 'três': '3', 'quatro': '4',
+      'cinco': '5', 'seis': '6', 'sete': '7', 'oito': '8', 'nove': '9', 'dez': '10'
+    };
+
+    function showToast(msg, icon = 'ℹ️') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMessage').innerText = msg;
+      document.getElementById('toastIcon').innerText = icon;
+      
+      toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+      }, 3000);
+    }
+
+    function saveState() {
+      localStorage.setItem('af_models', JSON.stringify(window.models));
+      localStorage.setItem('af_sectors', JSON.stringify(window.sectors));
+      localStorage.setItem('af_passwords', JSON.stringify(window.passwords));
+    }
+
+    function renderTabs() {
+      const container = document.getElementById('navTabs');
+      container.innerHTML = window.sectors.map(sec => {
+        const isActive = activeTab === sec.id;
+        return `
+          <button onclick="switchTab('${sec.id}')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition duration-200 border ${
+            isActive 
+              ? 'bg-white text-blue-950 border-white shadow-md' 
+              : 'bg-white/10 text-white border-transparent hover:bg-white/20'
+          }">
+            <span>${sec.icon || '📌'}</span>
+            <span>${sec.name}</span>
+          </button>
+        `;
+      }).join('');
+    }
+    window.renderTabs = renderTabs;
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      renderTabs();
+      renderContent();
+    }
+
+    function normalizeSearchText(text) {
+      let str = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      Object.keys(numberMap).forEach(key => {
+        str = str.replace(new RegExp('\\b' + key + '\\b', 'g'), numberMap[key]);
+      });
+      return str;
+    }
+
+    function onSearchInput(val) {
+      searchQuery = val;
+      const clearBtn = document.getElementById('searchClearBtn');
+      if (val) {
+        clearBtn.classList.remove('hidden');
+        clearBtn.classList.add('flex');
+      } else {
+        clearBtn.classList.add('hidden');
+        clearBtn.classList.remove('flex');
+      }
+      if (activeTab === 'modelos') renderContent();
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      onSearchInput('');
+    }
+
+    function renderContent() {
+      const container = document.getElementById('tabContent');
+      const searchHero = document.getElementById('searchHero');
+      
+      searchHero.style.display = (activeTab === 'modelos') ? 'block' : 'none';
+      const sectorObj = window.sectors.find(s => s.id === activeTab);
+
+      if (activeTab === 'modelos') {
+        renderModelsView(container);
+      } else if (activeTab === 'configuracoes') {
+        renderConfigView(container);
+      } else {
+        renderSectorView(container, sectorObj);
+      }
+    }
+    window.renderContent = renderContent;
+
+    function renderModelsView(container) {
+      const q = normalizeSearchText(searchQuery);
+      const filtered = window.models.filter(m => {
+        const nameNorm = normalizeSearchText(m.name);
+        const sizesNorm = normalizeSearchText(m.sizes);
+        const batchNorm = normalizeSearchText(m.batch || '');
+        return nameNorm.includes(q) || sizesNorm.includes(q) || batchNorm.includes(q);
+      });
+
+      let adminActionsHtml = '';
+      if (currentUserRole === 'admin' || currentUserRole === 'autorizado') {
+        adminActionsHtml = `
+          <div class="mb-6 flex justify-end">
+            <button onclick="openModelModal()" class="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md transition">
+              <span>➕</span> Adicionar Novo Modelo
+            </button>
+          </div>
+        `;
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = adminActionsHtml + `
+          <div class="bg-white p-12 rounded-2xl text-center border border-slate-200 shadow-sm">
+            <div class="text-4xl mb-3">👟</div>
+            <h3 class="text-slate-700 font-bold text-base mb-1">Nenhum modelo encontrado</h3>
+            <p class="text-slate-400 text-xs">Tente buscar por outro termo ou limpe os filtros de pesquisa.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = adminActionsHtml + `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          ${filtered.map(m => `
+            <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div>
+                <div class="flex justify-between items-start pb-3 border-b border-slate-100 mb-3 gap-2">
+                  <div>
+                    <h3 class="font-extrabold text-blue-950 text-base sm:text-lg leading-tight">${m.name}</h3>
+                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium mt-1">
+                      <span>📏 <strong>${m.sizes}</strong></span>
+                      ${m.batch ? `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-bold">📦 ${m.batch}</span>` : ''}
+                    </div>
+                  </div>
+                  ${currentUserRole !== 'abastecedor' ? `
+                    <div class="flex items-center gap-1">
+                      <button onclick="editModel('${m.id}')" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition text-xs font-semibold" title="Editar">✏️</button>
+                      ${currentUserRole === 'admin' ? `<button onclick="deleteModel('${m.id}')" class="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition text-xs font-semibold" title="Excluir">🗑️</button>` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+
+                <div class="space-y-2 mb-4">
+                  <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block">Componentes do Modelo</span>
+                  <div class="space-y-1.5">
+                    ${(m.components || []).map(c => `
+                      <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-xs border border-slate-100">
+                        <span class="font-medium text-slate-700">${c.name}</span>
+                        <span class="font-bold text-blue-900 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">${c.qty}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                ${m.matrices ? `
+                  <div class="mb-3">
+                    <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400 block mb-1">Matrizes Requeridas</span>
+                    <div class="text-xs bg-blue-50/60 text-blue-900 p-2.5 rounded-xl border border-blue-100 font-medium">
+                      🛠️ ${m.matrices}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <div>
+                <div class="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-xl text-[11px] font-medium flex items-center gap-2 mb-2">
+                  <span>⚠️</span>
+                  <span><strong>Atenção à Numeração:</strong> Não misturar peças de tamanhos diferentes!</span>
+                </div>
+
+                ${m.notes ? `
+                  <p class="text-[11px] text-slate-400 italic bg-slate-50 p-2 rounded-lg">
+                    📝 ${m.notes}
+                  </p>
+                ` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderSectorView(container, sector) {
+      if (!sector) return;
+
+      const sectorModels = window.models.map(m => ({
+        ...m,
+        sectorComponents: m.components ? m.components.filter(c => c.sector === sector.id) : []
+      })).filter(m => (sector.id === 'matrizes' ? !!m.matrices : m.sectorComponents.length > 0));
+
+      container.innerHTML = `
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm mb-6">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">${sector.icon || '📌'}</span>
+            <div>
+              <h2 class="text-lg font-bold text-blue-950">Setor: ${sector.name}</h2>
+              <p class="text-xs text-slate-500 mt-0.5">${sector.desc || 'Especificações de componentes para este setor.'}</p>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Itens a Separar / Abastecer neste Setor</h3>
+
+        ${sectorModels.length === 0 ? `
+          <div class="bg-white p-12 rounded-2xl text-center border border-slate-200 shadow-sm">
+            <p class="text-slate-400 text-sm">Nenhum componente cadastrado para este setor no momento.</p>
+          </div>
+        ` : `
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            ${sectorModels.map(m => `
+              <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+                <div class="pb-3 border-b border-slate-100 mb-3">
+                  <h4 class="font-bold text-blue-950 text-base">${m.name}</h4>
+                  <p class="text-xs text-slate-500 font-medium">Números: ${m.sizes} ${m.batch ? `| 📦 ${m.batch}` : ''}</p>
+                </div>
+
+                <div class="space-y-1.5">
+                  ${(sector.id === 'matrizes' ? [{ name: m.matrices, qty: 'Matriz' }] : m.sectorComponents).map(c => `
+                    <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-xs border border-slate-100">
+                      <span class="font-semibold text-slate-800">${c.name}</span>
+                      <span class="font-bold text-blue-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">${c.qty}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      `;
+    }
+
+    function renderConfigView(container) {
+      container.innerHTML = `
+        <div class="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6 max-w-4xl mx-auto">
+          <div>
+            <h2 class="text-xl font-extrabold text-blue-950 flex items-center gap-2">
+              <span>⚙️</span> Painel de Configurações & Acessos
+            </h2>
+            <p class="text-xs text-slate-500 mt-1">Gerencie backups locais, permissões e setores da fábrica.</p>
+          </div>
+
+          <!-- Backup Section (Disponível para todos) -->
+          <div class="border-t border-slate-100 pt-6">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-700 mb-2">📁 Backup de Dados (Dispositivo)</h3>
+            <p class="text-xs text-slate-500 mb-4">Exporte seus cadastros para enviar por WhatsApp para outro celular ou restaure um backup recebido.</p>
+            <div class="flex flex-wrap gap-3">
+              <button onclick="exportBackup()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <span>📥</span> Baixar Backup (JSON)
+              </button>
+              <label class="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
+                <span>📤</span> Importar Backup
+                <input type="file" id="importFile" accept=".json" onchange="importBackup(event)" class="hidden">
+              </label>
+            </div>
+          </div>
+
+          ${currentUserRole === 'admin' ? `
+            <div class="border-t border-slate-100 pt-6 space-y-6">
+              <div>
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-sm font-bold uppercase tracking-wider text-slate-700">Setores do Sistema</h3>
+                  <button onclick="openSectorModal()" class="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition">
+                    + Adicionar Novo Setor
+                  </button>
+                </div>
+
+                <div class="space-y-2">
+                  ${window.sectors.map(s => `
+                    <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <div class="flex items-center gap-3">
+                        <span class="text-xl">${s.icon || '📌'}</span>
+                        <div>
+                          <span class="font-bold text-xs sm:text-sm text-slate-800">${s.name}</span>
+                          <p class="text-[11px] text-slate-400">${s.desc || ''}</p>
+                        </div>
+                      </div>
+                      ${!['modelos','configuracoes'].includes(s.id) ? `
+                        <button onclick="deleteSector('${s.id}')" class="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition">
+                          Excluir
+                        </button>
+                      ` : '<span class="text-[10px] font-bold text-slate-400 uppercase bg-slate-200 px-2 py-0.5 rounded">Fixo</span>'}
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="border-t border-slate-100 pt-6">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-700 mb-3">Senhas de Acesso</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Senha Administrador</label>
+                    <input type="text" id="newAdminPass" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800" value="${window.passwords.admin}">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Senha Autorizado</label>
+                    <input type="text" id="newAuthPass" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800" value="${window.passwords.autorizado}">
+                  </div>
+                </div>
+                <button onclick="updatePasswords()" class="mt-4 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition">
+                  Atualizar Senhas
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-relaxed">
+              🔒 Nível de acesso atual: <strong class="text-blue-900 uppercase">${currentUserRole}</strong>. 
+              Para adicionar setores ou alterar senhas, autentique-se como Administrador.
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function openLoginModal() {
+      document.getElementById('loginModal').classList.remove('hidden');
+      document.getElementById('loginModal').classList.add('flex');
+    }
+
+    function closeLoginModal() {
+      document.getElementById('loginModal').classList.add('hidden');
+      document.getElementById('loginModal').classList.remove('flex');
+      document.getElementById('loginPasswordInput').value = '';
+    }
+
+    function submitPassword() {
+      const pass = document.getElementById('loginPasswordInput').value.trim();
+      if (pass === window.passwords.admin) {
+        currentUserRole = 'admin';
+        document.getElementById('userRoleIcon').innerText = '👑';
+        document.getElementById('userRoleText').innerText = 'Administrador';
+        showToast('Autenticado como Administrador!', '👑');
+        closeLoginModal();
+        renderContent();
+      } else if (pass === window.passwords.autorizado) {
+        currentUserRole = 'autorizado';
+        document.getElementById('userRoleIcon').innerText = '✏️';
+        document.getElementById('userRoleText').innerText = 'Usuário Autorizado';
+        showToast('Autenticado como Usuário Autorizado!', '✏️');
+        closeLoginModal();
+        renderContent();
+      } else {
+        showToast('Senha incorreta!', '❌');
+      }
+    }
+
+    function openModelModal(modelId = null) {
+      document.getElementById('modelModal').classList.remove('hidden');
+      document.getElementById('modelModal').classList.add('flex');
+      const container = document.getElementById('componentsContainer');
+      container.innerHTML = '';
+
+      if (modelId) {
+        const m = window.models.find(x => x.id === modelId);
+        document.getElementById('modelModalTitle').innerText = 'Editar Modelo';
+        document.getElementById('modelId').value = m.id;
+        document.getElementById('modelName').value = m.name;
+        document.getElementById('modelSizes').value = m.sizes;
+        document.getElementById('modelBatch').value = m.batch || '';
+        document.getElementById('modelMatrices').value = m.matrices || '';
+        document.getElementById('modelNotes').value = m.notes || '';
+        
+        if (m.components && m.components.length > 0) {
+          m.components.forEach(c => addComponentInputRow(c.name, c.qty, c.sector));
+        } else {
+          addComponentInputRow();
+        }
+      } else {
+        document.getElementById('modelModalTitle').innerText = 'Cadastrar Novo Modelo';
+        document.getElementById('modelForm').reset();
+        document.getElementById('modelId').value = '';
+        addComponentInputRow();
+      }
+    }
+
+    function closeModelModal() {
+      document.getElementById('modelModal').classList.add('hidden');
+      document.getElementById('modelModal').classList.remove('flex');
+    }
+
+    function addComponentInputRow(name = '', qty = '', sector = 'frequencia') {
+      const container = document.getElementById('componentsContainer');
+      const div = document.createElement('div');
+      div.className = 'component-row flex items-center gap-2';
+      
+      const availableSectors = window.sectors.filter(s => !['modelos','configuracoes'].includes(s.id));
+      const sectorOptions = availableSectors.map(s => `<option value="${s.id}" ${s.id === sector ? 'selected' : ''}>${s.name}</option>`).join('');
+
+      div.innerHTML = `
+        <input type="text" placeholder="Nome da peça" value="${name}" class="comp-name flex-2 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white" required>
+        <input type="text" placeholder="Qtd" value="${qty}" class="comp-qty flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white" required>
+        <select class="comp-sector flex-1.5 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white">
+          ${sectorOptions}
+        </select>
+        <button type="button" onclick="this.parentElement.remove(); triggerAutoSave();" class="p-2 text-red-500 hover:bg-red-50 rounded-xl text-xs font-bold transition">✕</button>
+      `;
+      container.appendChild(div);
+      triggerAutoSave();
+    }
+
+    function triggerAutoSave() {
+      const indicator = document.getElementById('autoSaveIndicator');
+      if (indicator) {
+        indicator.innerText = "⏳ Salvando...";
+        indicator.className = "text-[11px] font-semibold text-amber-600 flex items-center gap-1 mt-0.5 opacity-100 transition-opacity";
+      }
+
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        performSilentSave();
+      }, 400);
+    }
+
+    function performSilentSave() {
+      const nameInput = document.getElementById('modelName');
+      if (!nameInput || !nameInput.value.trim()) return;
+
+      if (!document.getElementById('modelId').value) {
+        document.getElementById('modelId').value = Date.now().toString();
+      }
+
+      const id = document.getElementById('modelId').value;
+      const name = nameInput.value;
+      const sizes = document.getElementById('modelSizes').value;
+      const batch = document.getElementById('modelBatch').value;
+      const matrices = document.getElementById('modelMatrices').value;
+      const notes = document.getElementById('modelNotes').value;
+
+      const compRows = document.querySelectorAll('.component-row');
+      const components = Array.from(compRows).map(row => ({
+        name: row.querySelector('.comp-name').value,
+        qty: row.querySelector('.comp-qty').value,
+        sector: row.querySelector('.comp-sector').value
+      }));
+
+      const modelData = { id, name, sizes, batch, matrices, notes, components };
+      const existingIndex = window.models.findIndex(m => m.id === id);
+
+      if (existingIndex > -1) {
+        window.models[existingIndex] = modelData;
+      } else {
+        window.models.push(modelData);
+      }
+
+      saveState();
+      
+      const indicator = document.getElementById('autoSaveIndicator');
+      if (indicator) {
+        indicator.innerText = "🟢 Salvo automaticamente";
+        indicator.className = "text-[11px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5 opacity-100 transition-opacity";
+      }
+    }
+
+    function saveModel(e) {
+      if (e) e.preventDefault();
+      performSilentSave();
+      closeModelModal();
+      renderContent();
+      showToast('Modelo salvo com sucesso!', '✅');
+    }
+
+    function editModel(id) {
+      openModelModal(id);
+    }
+
+    function deleteModel(id) {
+      if (currentUserRole !== 'admin') return;
+      window.models = window.models.filter(m => m.id !== id);
+      saveState();
+      renderContent();
+      showToast('Modelo removido.', '🗑️');
+    }
+
+    function openSectorModal() {
+      document.getElementById('sectorModal').classList.remove('hidden');
+      document.getElementById('sectorModal').classList.add('flex');
+    }
+
+    function closeSectorModal() {
+      document.getElementById('sectorModal').classList.add('hidden');
+      document.getElementById('sectorModal').classList.remove('flex');
+    }
+
+    function saveNewSector(e) {
+      e.preventDefault();
+      const name = document.getElementById('sectorNameInput').value;
+      const icon = document.getElementById('sectorIconInput').value || '📌';
+      const desc = document.getElementById('sectorDescInput').value;
+      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      window.sectors.splice(window.sectors.length - 1, 0, { id, name, icon, desc });
+      saveState();
+      closeSectorModal();
+      renderTabs();
+      renderContent();
+      showToast('Novo setor criado!', '🎉');
+    }
+
+    function deleteSector(id) {
+      window.sectors = window.sectors.filter(s => s.id !== id);
+      saveState();
+      renderTabs();
+      renderContent();
+      showToast('Setor removido.', '🗑️');
+    }
+
+    function updatePasswords() {
+      window.passwords.admin = document.getElementById('newAdminPass').value;
+      window.passwords.autorizado = document.getElementById('newAuthPass').value;
+      saveState();
+      showToast('Senhas atualizadas!', '🔐');
+    }
+
+    function exportBackup() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        models: window.models,
+        sectors: window.sectors,
+        passwords: window.passwords,
+        exportedAt: new Date().toISOString()
+      }, null, 2));
+
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `abastece_facil_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('Backup baixado com sucesso!', '📦');
+    }
+
+    function importBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (importedData.models && importedData.sectors) {
+            window.models = importedData.models;
+            window.sectors = importedData.sectors;
+            if (importedData.passwords) window.passwords = importedData.passwords;
+            saveState();
+            renderTabs();
+            renderContent();
+            showToast('Backup restaurado com sucesso!', '🎉');
+          } else {
+            showToast('Arquivo de backup inválido.', '❌');
+          }
+        } catch (err) {
+          showToast('Erro ao ler o arquivo JSON.', '❌');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Export variables and functions globally
+    window.openLoginModal = openLoginModal;
+    window.closeLoginModal = closeLoginModal;
+    window.submitPassword = submitPassword;
+    window.openModelModal = openModelModal;
+    window.closeModelModal = closeModelModal;
+    window.addComponentInputRow = addComponentInputRow;
+    window.triggerAutoSave = triggerAutoSave;
+    window.saveModel = saveModel;
+    window.editModel = editModel;
+    window.deleteModel = deleteModel;
+    window.openSectorModal = openSectorModal;
+    window.closeSectorModal = closeSectorModal;
+    window.saveNewSector = saveNewSector;
+    window.deleteSector = deleteSector;
+    window.updatePasswords = updatePasswords;
+    window.onSearchInput = onSearchInput;
+    window.clearSearch = clearSearch;
+    window.switchTab = switchTab;
+    window.exportBackup = exportBackup;
+    window.importBackup = importBackup;
+
+    // Initial render
+    renderTabs();
+    renderContent();
+  </script>
+</body>
+</html>
